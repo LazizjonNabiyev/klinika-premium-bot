@@ -116,7 +116,7 @@ Javob {'o\'zbek tilida' if lang=='uz' else 'rus tilida'} bo'lsin. Qisqa va aniq 
                     "HTTP-Referer": "https://t.me/ashurov_clinik_bot",
                 },
                 json={
-                    "model": "meta-llama/llama-3.1-8b-instruct:free",
+                    "model": "meta-llama/llama-3.3-70b-instruct:free",
                     "messages": messages,
                     "max_tokens": 500,
                 },

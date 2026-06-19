@@ -109,8 +109,9 @@ Javob {'o\'zbek tilida' if lang=='uz' else 'rus tilida'} bo'lsin. Qisqa va aniq 
 
         models = [
             "meta-llama/llama-3.3-70b-instruct:free",
-            "deepseek/deepseek-v3-base:free",
-            "qwen/qwen3-8b:free",
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "nousresearch/hermes-3-llama-3.1-405b:free",
+            "openchat/openchat-7b:free",
         ]
         answer = None
         async with aiohttp.ClientSession() as session:

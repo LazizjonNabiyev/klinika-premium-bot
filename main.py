@@ -1,7 +1,6 @@
-import os, asyncio, logging
+import os, asyncio, logging, aiohttp
 from datetime import datetime, timedelta
 import pytz
-import google.generativeai as genai
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from flask import Flask, request
@@ -13,14 +12,11 @@ BOT_TOKEN    = os.environ.get("BOT_TOKEN", "8519255967:AAGJPFIBqCZlDHTWSmsBohfo0
 GROUP_ID     = os.environ.get("GROUP_ID", "@doctorashurovclicnicbaza")
 ADMIN_IDS    = [int(x) for x in os.environ.get("ADMIN_IDS", "920162633").split(",") if x]
 WEBHOOK_URL  = os.environ.get("WEBHOOK_URL", "https://klinikabot-production.up.railway.app")
-GEMINI_KEY   = os.environ.get("GEMINI_API_KEY", "")
+OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 PAYME_CARD   = os.environ.get("PAYME_CARD", "8600 1234 5678 9012")  # O'zgartiring
 CLICK_CARD   = os.environ.get("CLICK_CARD", "8600 9876 5432 1098")  # O'zgartiring
 TZ           = pytz.timezone("Asia/Tashkent")
 
-# Gemini sozlash
-genai.configure(api_key=GEMINI_KEY)
-gemini_model = genai.GenerativeModel("gemini-2.5-flash")
 
 CLINIC_NAME    = "Ashurov Clinik"
 CLINIC_PHONE   = "+998 91 166 66 96\n📱 +998 90 995 17 77"
@@ -91,7 +87,7 @@ def unbook_time(doc_id, date, time):
 def get_user_appointments(uid):
     return [a for a in appointments.values() if a["uid"]==uid and a["status"] in ["pending","confirmed","payment_pending"]]
 
-# ─── GEMINI AI ───────────────────────────────────────────────
+# ─── OPENROUTER AI ───────────────────────────────────────────
 async def ask_gemini(uid, user_message, lang):
     try:
         if uid not in ai_sessions:
@@ -106,23 +102,31 @@ Javob {'o\'zbek tilida' if lang=='uz' else 'rus tilida'} bo'lsin. Qisqa va aniq 
 
         history = ai_sessions[uid][-6:] if len(ai_sessions[uid]) > 6 else ai_sessions[uid]
 
-        messages = []
+        messages = [{"role": "system", "content": system_prompt}]
         for h in history:
-            messages.append({"role": h["role"], "parts": [h["parts"]]})
-        messages.append({"role": "user", "parts": [f"{system_prompt}\n\nSavol: {user_message}"]})
+            messages.append({"role": h["role"], "content": h["parts"]})
+        messages.append({"role": "user", "content": user_message})
 
-        response = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: gemini_model.generate_content(messages)
-            ),
-            timeout=15.0
-        )
-
-        answer = response.text
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://t.me/ashurov_clinik_bot",
+                },
+                json={
+                    "model": "meta-llama/llama-3.1-8b-instruct:free",
+                    "messages": messages,
+                    "max_tokens": 500,
+                },
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                data = await resp.json()
+                answer = data["choices"][0]["message"]["content"]
 
         ai_sessions[uid].append({"role": "user", "parts": user_message})
-        ai_sessions[uid].append({"role": "model", "parts": answer})
+        ai_sessions[uid].append({"role": "assistant", "parts": answer})
 
         if len(ai_sessions[uid]) > 20:
             ai_sessions[uid] = ai_sessions[uid][-10:]
@@ -132,7 +136,7 @@ Javob {'o\'zbek tilida' if lang=='uz' else 'rus tilida'} bo'lsin. Qisqa va aniq 
     except asyncio.TimeoutError:
         return "⏱ Javob kechikdi. Iltimos qayta yuboring." if lang=="uz" else "⏱ Ответ задержался. Попробуйте снова."
     except Exception as e:
-        logging.error(f"Gemini error: {e}")
+        logging.error(f"OpenRouter error: {e}")
         return "❌ AI hozir ishlamayapti. Keyinroq urinib ko'ring." if lang=="uz" else "❌ AI недоступен. Попробуйте позже."
 
 # ─── KLAVIATURALAR ───────────────────────────────────────────

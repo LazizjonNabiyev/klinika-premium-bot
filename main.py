@@ -20,7 +20,7 @@ TZ           = pytz.timezone("Asia/Tashkent")
 
 # Gemini sozlash
 genai.configure(api_key=GEMINI_KEY)
-gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+gemini_model = genai.GenerativeModel("gemini-2.5-flash")
 
 CLINIC_NAME    = "Ashurov Clinik"
 CLINIC_PHONE   = "+998 91 166 66 96\n📱 +998 90 995 17 77"

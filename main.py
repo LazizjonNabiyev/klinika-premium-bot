@@ -107,23 +107,40 @@ Javob {'o\'zbek tilida' if lang=='uz' else 'rus tilida'} bo'lsin. Qisqa va aniq 
             messages.append({"role": h["role"], "content": h["parts"]})
         messages.append({"role": "user", "content": user_message})
 
+        models = [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemma-3-27b-it:free",
+            "mistralai/mistral-7b-instruct:free",
+        ]
+        answer = None
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://t.me/ashurov_clinik_bot",
-                },
-                json={
-                    "model": "meta-llama/llama-3.3-70b-instruct:free",
-                    "messages": messages,
-                    "max_tokens": 500,
-                },
-                timeout=aiohttp.ClientTimeout(total=15)
-            ) as resp:
-                data = await resp.json()
-                answer = data["choices"][0]["message"]["content"]
+            for model in models:
+                try:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {OPENROUTER_KEY}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://t.me/ashurov_clinik_bot",
+                        },
+                        json={
+                            "model": model,
+                            "messages": messages,
+                            "max_tokens": 500,
+                        },
+                        timeout=aiohttp.ClientTimeout(total=15)
+                    ) as resp:
+                        data = await resp.json()
+                        logging.info(f"OpenRouter [{model}]: {data}")
+                        if "choices" in data and data["choices"]:
+                            answer = data["choices"][0]["message"]["content"]
+                            break
+                        else:
+                            logging.warning(f"Model {model} failed: {data}")
+                except Exception as me:
+                    logging.warning(f"Model {model} exception: {me}")
+        if not answer:
+            return "\u274c AI hozir ishlamayapti. Keyinroq urinib ko\u2019ring." if lang=="uz" else "\u274c AI nedostupen."
 
         ai_sessions[uid].append({"role": "user", "parts": user_message})
         ai_sessions[uid].append({"role": "assistant", "parts": answer})
